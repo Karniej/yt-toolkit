@@ -672,17 +672,18 @@ async function suggestThumbTexts() {
 
   try {
     const result = await callOpenAI([
-      { role: 'system', content: `Generate 5 thumbnail text options for a YouTube video. Each should be 2-4 punchy words, ALL CAPS.
+      { role: 'system', content: `Generate 5 thumbnail text options for a YouTube video. Read the transcript/topic carefully and pull SPECIFIC words from the actual content.
 
 TONE: ${toneInstructions[tone] || toneInstructions['curiosity']}
 
 Rules:
-- MAX 4 words per option
-- Must match the requested tone exactly
-- No generic filler
+- MAX 4 words per option, ALL CAPS
+- Must reference something SPECIFIC from the video (a tool name, a number, a specific outcome)
+- NO generic phrases that could apply to any video ("GAME CHANGER", "THIS IS IT", "MUST SEE")
+- The text should make someone who watches the video think "yeah, that's what it's about"
 
 Return exactly 5 options, one per line, numbered 1-5. Nothing else.` },
-      { role: 'user', content: topic.substring(0, 300) }
+      { role: 'user', content: topic.substring(0, 500) }
     ], 1.0);
 
     const options = result.split('\n').filter(l => l.trim()).map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^["']|["']$/g, '').trim());
@@ -711,31 +712,32 @@ async function generateTitles() {
 About the channel:
 ${CHANNEL.bio}
 
+YOUR JOB: Read the transcript/topic carefully and extract the ACTUAL content — what specifically happened, what was built, what was learned. Titles must reflect the real video content, not generic clickbait.
+
 TITLE RULES:
-- Max 60 characters (hard limit — YouTube truncates)
-- Create a curiosity gap. The viewer should NEED to click.
-- Use contrast, tension, or unexpected juxtapositions
-- Numbers work when they feel real ("$847/mo", "in 11 days", "4 failed apps")
-- Power words: "actually", "real", "stopped", "broke", "failed", "accidentally", "quietly"
-- Contrarian > conventional. Challenge assumptions.
-- Talk like a real person, not a marketing playbook
-- NO all-caps titles, NO excessive punctuation, NO "you won't believe"
-- NO generic guru titles like "How to 10x Your Productivity"
+- Max 60 characters (YouTube truncates longer)
+- Titles must be SPECIFIC to what the video actually covers
+- Pull real details from the transcript: tool names, specific outcomes, actual numbers
+- Talk like a real person describing what they did, not a marketing headline
+- First person feels natural for this channel
+- NO generic clickbait ("This Changes Everything", "You Won't Believe")
+- NO vague titles that could apply to any video
+- NO guru energy, NO hype words like "INSANE", "MIND-BLOWING", "GAME CHANGER"
 
-GOOD EXAMPLES:
-- "I Let an AI Bot Run My Business for a Week"
-- "My App Made $0 for 6 Months. Then This Happened."
-- "I Sold 2 Apps on Flippa. Here's What I Learned."
-- "Stop Asking for Permission to Ship"
-- "React Native is Dead (I Still Use It)"
-- "I Automated My Dev Workflow Through Telegram"
+GOOD (specific, grounded):
+- "I Let a Telegram Bot Push Code to My Projects"
+- "Upgrading ShipReactNative to Expo SDK 55"
+- "Building 6 Apps at Once (Here's How I Stay Sane)"
+- "My Newsletter App Now Supports Mailchimp"
+- "I Sold My App on Flippa for $800"
 
-BAD EXAMPLES:
-- "How to Build Apps Fast" (boring, generic)
-- "ULTIMATE Guide to React Native" (guru energy)
-- "You NEED to Try This!!!" (clickbait)
+BAD (generic, clickbaity):
+- "This Tool Changes EVERYTHING" (vague, could be any video)
+- "You NEED to See This!" (pure clickbait)
+- "The Future of Coding is HERE" (guru energy)
+- "How I 10x'd My Productivity" (generic)
 
-Return exactly 10 titles, numbered 1-10. No quotes. Mix styles: some provocative, some honest, some curiosity-driven.` },
+Return exactly 10 titles, numbered 1-10. No quotes. Each must be clearly about the specific video topic.` },
       { role: 'user', content: `Generate 10 YouTube titles for this video:\n\n${topic}` }
     ]);
 
