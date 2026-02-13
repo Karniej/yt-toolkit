@@ -253,12 +253,11 @@
   <!-- API Keys -->
   <div class="setup">
     <input type="password" id="openaiKey" placeholder="OpenAI API key (sk-...)" />
-    <input type="password" id="replicateKey" placeholder="Replicate API key (r8_...)" />
-    <input type="text" id="proxyUrl" placeholder="CORS Proxy URL (your Cloudflare Worker)" style="min-width:280px;" />
+    <input type="password" id="geminiKey" placeholder="Google Gemini API key" />
     <button class="btn btn-secondary" onclick="saveKeys()">Save Keys</button>
     <span class="key-saved" id="keySaved" style="display:none">✓ Saved</span>
   </div>
-  <p style="color:var(--text2);font-size:11px;margin-top:-24px;margin-bottom:24px;">Thumbnails need a CORS proxy. Deploy <code style="color:var(--accent)">worker/worker.js</code> to Cloudflare Workers (free) and paste the URL above.</p>
+  <p style="color:var(--text2);font-size:11px;margin-top:-24px;margin-bottom:24px;">Thumbnails use Gemini 2.5 Flash Image (nano-banana). Get a free API key at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com/apikey</a></p>
 
   <!-- Photos -->
   <div class="photos">
@@ -434,11 +433,9 @@ let currentPhotoIndex = 0;
 // ============================================================================
 function saveKeys() {
   const ok = document.getElementById('openaiKey').value.trim();
-  const rk = document.getElementById('replicateKey').value.trim();
-  const px = document.getElementById('proxyUrl').value.trim();
+  const gk = document.getElementById('geminiKey').value.trim();
   if (ok) localStorage.setItem('yt_openai_key', ok);
-  if (rk) localStorage.setItem('yt_replicate_key', rk);
-  if (px) localStorage.setItem('yt_cors_proxy', px);
+  if (gk) localStorage.setItem('yt_gemini_key', gk);
   const el = document.getElementById('keySaved');
   el.style.display = 'inline';
   setTimeout(() => el.style.display = 'none', 2000);
@@ -448,32 +445,46 @@ function getKey(name) {
   return localStorage.getItem(`yt_${name}_key`) || '';
 }
 
-// Replicate CORS workaround: use a tiny Cloudflare Worker proxy
-// If no custom proxy is set, we use the built-in proxy approach
-// The proxy just forwards requests to api.replicate.com with proper headers
+// Gemini 2.5 Flash Image (nano-banana) for thumbnail generation
+async function callGeminiImage(prompt) {
+  const key = getKey('gemini');
+  if (!key) { alert('Please enter your Google Gemini API key'); return null; }
 
-function replicateFetch(url, options = {}) {
-  const proxyUrl = localStorage.getItem('yt_cors_proxy');
-  if (!proxyUrl) {
-    throw new Error('CORS Proxy URL required for thumbnails. Deploy worker/worker.js to Cloudflare Workers (free) and paste the URL.');
-  }
-  // Route through Cloudflare Worker proxy
-  return fetch(proxyUrl, {
-    ...options,
-    headers: {
-      ...options.headers,
-      'X-Target-URL': url,
-    }
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-image:generateContent?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+      }
+    })
   });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Gemini error: ${err?.error?.message || res.statusText}`);
+  }
+
+  const data = await res.json();
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  
+  // Find the image part
+  for (const part of parts) {
+    if (part.inlineData) {
+      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    }
+  }
+  throw new Error('No image returned from Gemini. Try a different prompt.');
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   const ok = getKey('openai');
-  const rk = getKey('replicate');
-  const px = localStorage.getItem('yt_cors_proxy') || '';
+  const gk = getKey('gemini');
   if (ok) document.getElementById('openaiKey').value = ok;
-  if (rk) document.getElementById('replicateKey').value = rk;
-  if (px) document.getElementById('proxyUrl').value = px;
+  if (gk) document.getElementById('geminiKey').value = gk;
 
   for (let i = 0; i < 2; i++) {
     const saved = localStorage.getItem(`yt_photo_${i}`);
@@ -554,48 +565,6 @@ async function callOpenAI(messages, temperature = 0.9, max_tokens = 2000) {
   if (!res.ok) throw new Error(`OpenAI error: ${await res.text()}`);
   const data = await res.json();
   return data.choices[0].message.content;
-}
-
-async function callReplicate(prompt) {
-  const key = getKey('replicate');
-  if (!key) { alert('Please enter your Replicate API key'); return null; }
-
-  // Create prediction
-  const createRes = await replicateFetch('https://api.replicate.com/v1/predictions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model: 'black-forest-labs/flux-1.1-pro',
-      input: {
-        prompt,
-        aspect_ratio: '16:9',
-        output_format: 'jpg',
-        output_quality: 90,
-        safety_tolerance: 5,
-        prompt_upsampling: true,
-      }
-    })
-  });
-
-  if (!createRes.ok) throw new Error(`Replicate error: ${await createRes.text()}`);
-  let prediction = await createRes.json();
-
-  // Poll for result
-  while (prediction.status === 'starting' || prediction.status === 'processing') {
-    await new Promise(r => setTimeout(r, 2500));
-    const pollRes = await replicateFetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-      headers: { 'Authorization': `Bearer ${key}` }
-    });
-    prediction = await pollRes.json();
-  }
-
-  if (prediction.status === 'succeeded' && prediction.output) {
-    return typeof prediction.output === 'string' ? prediction.output : prediction.output[0] || prediction.output;
-  }
-  throw new Error(`Generation failed: ${prediction.error || prediction.status}`);
 }
 
 // ============================================================================
@@ -732,8 +701,8 @@ async function generateThumbnail() {
   const topic = document.getElementById('topicInput').value.trim();
   if (!topic) { alert('Please enter a topic or transcript'); return; }
 
-  const rKey = getKey('replicate');
-  if (!rKey) { alert('Please enter your Replicate API key'); return; }
+  const gKey = getKey('gemini');
+  if (!gKey) { alert('Please enter your Google Gemini API key'); return; }
 
   const el = document.getElementById('thumbnailResults');
   const promptEl = document.getElementById('thumbnailPrompt');
@@ -744,7 +713,7 @@ async function generateThumbnail() {
   try {
     // Step 1: Generate image prompt via GPT
     const imagePrompt = await callOpenAI([
-      { role: 'system', content: `You create FLUX image generation prompts for YouTube thumbnails. The channel is about React Native indie hacking and app development.
+      { role: 'system', content: `You create image generation prompts for YouTube thumbnails. The channel is about React Native indie hacking and app development.
 
 Style requested: "${style}"
 
@@ -752,17 +721,17 @@ THUMBNAIL RULES:
 - 16:9 aspect ratio, 1280x720 feel
 - Bold, high contrast, must read at tiny sizes
 - Saturated colors that pop against YouTube's white UI
-- For "bold-text": dramatic lighting, person at desk/screen, intense mood
+- For "bold-text": dramatic lighting, person at desk/screen, big bold 2-4 word text overlay
 - For "screenshot": clean app UI mockup with device, subtle glow
-- For "minimal": single object/icon, negative space, clean
+- For "minimal": single object/icon, negative space, clean, 1-2 big words
 - For "cinematic": dramatic lighting, shallow DOF, moody
-- For "before-after": split screen comparison
+- For "before-after": split screen comparison, left=messy right=clean
 - For "meme": expressive face/reaction, relatable dev moment
 
 IMPORTANT:
-- FLUX cannot render text reliably. Focus ONLY on the visual scene/background.
+- Gemini CAN render text well. Include 2-4 words of bold text on the image if appropriate.
 - Use warm/hot colors (reds, oranges, yellows) — best YouTube CTR
-- Include human element when possible (hands, silhouette, desk setup)
+- Include human element when possible (hands typing, face, desk setup)
 - Make it DRAMATIC. Boring thumbnails don't get clicked.
 - Think "thumbnail that stops the scroll"
 
@@ -772,17 +741,17 @@ Output ONLY the image prompt. 2-3 detailed sentences. No explanation.` },
 
     promptEl.innerHTML = `<div class="prompt-preview">Prompt: ${imagePrompt}</div>`;
 
-    // Step 2: Generate with Replicate FLUX
-    el.innerHTML = '<div class="thumbnail-item"><div class="loading"><span class="spinner"></span> Generating with FLUX 1.1 Pro...</div></div>';
+    // Step 2: Generate with Gemini nano-banana
+    el.innerHTML = '<div class="thumbnail-item"><div class="loading"><span class="spinner"></span> Generating with Gemini nano-banana...</div></div>';
 
-    const imgUrl = await callReplicate(imagePrompt);
+    const imgDataUrl = await callGeminiImage(imagePrompt);
 
     el.innerHTML = `
       <div class="thumbnail-item">
-        <img src="${imgUrl}" alt="Generated thumbnail" />
+        <img src="${imgDataUrl}" alt="Generated thumbnail" />
       </div>
       <div class="thumbnail-actions">
-        <a href="${imgUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none;font-size:12px;">Open Full Size</a>
+        <a href="${imgDataUrl}" download="thumbnail.png" class="btn btn-secondary" style="text-decoration:none;font-size:12px;">Download</a>
         <button class="btn btn-ghost" style="font-size:12px;" onclick="generateThumbnail()">Regenerate</button>
       </div>`;
   } catch (err) {
