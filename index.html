@@ -283,7 +283,21 @@
   </div>
 
   <div class="input-section">
-    <label>Thumbnail Style</label>
+    <label>Text Style</label>
+    <div class="style-chips" id="textStyleChips">
+      <div class="chip active" data-textstyle="bold-white">Bold White + Black Outline</div>
+      <div class="chip" data-textstyle="yellow-bold">Yellow Bold</div>
+      <div class="chip" data-textstyle="red-highlight">Red Highlight Box</div>
+      <div class="chip" data-textstyle="neon-glow">Neon Glow</div>
+      <div class="chip" data-textstyle="gradient-text">Gradient Text</div>
+      <div class="chip" data-textstyle="3d-text">3D / Drop Shadow</div>
+      <div class="chip" data-textstyle="handwritten">Handwritten / Marker</div>
+      <div class="chip" data-textstyle="glitch">Glitch / Distorted</div>
+    </div>
+  </div>
+
+  <div class="input-section">
+    <label>Layout Style</label>
     <div class="style-chips">
       <div class="chip active" data-style="face-left-text-right">Face Left + Text Right</div>
       <div class="chip" data-style="face-center-text-top">Face Center + Text Top</div>
@@ -559,15 +573,28 @@ function removePhoto(index) {
 // ============================================================================
 // STYLE CHIPS
 // ============================================================================
-document.querySelectorAll('.chip').forEach(chip => {
+// Layout style chips
+document.querySelectorAll('.style-chips:not(#textStyleChips) .chip').forEach(chip => {
   chip.addEventListener('click', () => {
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// Text style chips
+document.querySelectorAll('#textStyleChips .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#textStyleChips .chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
   });
 });
 
 function getSelectedStyle() {
-  return document.querySelector('.chip.active')?.dataset.style || 'bold-text';
+  return document.querySelector('.style-chips:not(#textStyleChips) .chip.active')?.dataset.style || 'face-left-text-right';
+}
+
+function getSelectedTextStyle() {
+  return document.querySelector('#textStyleChips .chip.active')?.dataset.textstyle || 'bold-white';
 }
 
 // ============================================================================
@@ -771,17 +798,30 @@ async function generateThumbnail() {
       return;
     }
 
-    // Build direct prompt for Gemini (no GPT intermediary — Gemini works better with narrative prompts)
+    // Text style descriptions
+    const textStyle = getSelectedTextStyle();
+    const textStyleDesc = {
+      'bold-white': 'very large, bold, white Impact-style font with a thick black outline',
+      'yellow-bold': 'very large, bold, bright yellow font with a thick black outline, high contrast',
+      'red-highlight': 'large bold white font inside a red rectangular highlight box, like a news chyron',
+      'neon-glow': 'large bold font with a bright neon glow effect (cyan or green), glowing against the dark background',
+      'gradient-text': 'very large bold font with a gradient fill from white to bright blue or orange, with subtle shadow',
+      '3d-text': 'very large bold white 3D-style font with a strong drop shadow and depth effect, popping out of the image',
+      'handwritten': 'large handwritten or marker-style font in white or yellow, casual and energetic, slightly tilted',
+      'glitch': 'large bold font with a digital glitch/distortion effect, with red and cyan color shift, techy cyberpunk feel',
+    }[textStyle] || 'very large, bold, white Impact-style font with a thick black outline';
+
+    // Build direct prompt for Gemini
     const styleInstructions = {
-      'face-left-text-right': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left third of the frame, shown from the chest up with their full head and hair visible and plenty of space above their head. On the right two-thirds of the image, display the text "${thumbText}" in very large, bold, white Impact-style font with a thick black outline. Replace the background behind the person with a clean, dark blue-to-purple gradient. The overall image must be in 16:9 landscape format.`,
-      'face-center-text-top': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person centered in the lower two-thirds of the frame, shown from the chest up. Display the text "${thumbText}" in very large, bold, white Impact-style font with thick black outline across the top quarter of the image. Replace the background with a dark moody gradient. 16:9 landscape format.`,
-      'face-with-icon': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left side, chest up. On the right side, add a large, simple icon or symbol related to "${topic.substring(0, 50)}" alongside the text "${thumbText}" in bold white Impact-style font with black outline. Dark background. 16:9 landscape format.`,
-      'screenshot-reaction': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the right third looking surprised or thoughtful, chest up. On the left two-thirds, show a simplified code editor or app interface screenshot. Overlay the text "${thumbText}" in bold white Impact-style font with black outline at the bottom. Dark background. 16:9 landscape format.`,
-      'dramatic': `Edit this photo to create a wide landscape YouTube thumbnail with dramatic, cinematic lighting. Place the person slightly left of center, chest up, with moody side lighting creating shadows. Display the text "${thumbText}" in very large, bold, white Impact-style font with heavy black outline on the right side. Very dark background with subtle colored rim lighting on the person. 16:9 landscape format.`,
-      'split': `Edit this photo to create a wide landscape YouTube thumbnail with a clean vertical split. Left half: the person from the photo, chest up, on a dark background. Right half: a bold solid color background with the text "${thumbText}" centered in very large, bold, white Impact-style font with black outline. 16:9 landscape format.`,
-      'podcast-style': `Edit this photo to create a wide landscape YouTube thumbnail in a podcast/talking head style. Place the person centered, shown from chest up, as if sitting at a desk or in front of a microphone. Replace the background with a warm, slightly blurred room or studio setting. Display the text "${thumbText}" in large, bold white font with black outline at the bottom or top. 16:9 landscape format.`,
-      'breaking-news': `Edit this photo to create a wide landscape YouTube thumbnail styled like breaking tech news. Place the person on the left, chest up. On the right, add a red and white "BREAKING" news-style banner or alert graphic with the text "${thumbText}" in large bold white font. Dark blue/navy background. 16:9 landscape format.`,
-      'versus': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left side, chest up. On the right side, add a "VS" graphic or opposing element related to the topic. Display the text "${thumbText}" in large bold white Impact font with black outline across the middle. Dark background with a red/orange split effect. 16:9 landscape format.`,
+      'face-left-text-right': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left third of the frame, shown from the chest up with their full head and hair visible and plenty of space above their head. On the right two-thirds of the image, display the text "${thumbText}" in ${textStyleDesc}. Replace the background behind the person with a clean, dark blue-to-purple gradient. The overall image must be in 16:9 landscape format.`,
+      'face-center-text-top': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person centered in the lower two-thirds of the frame, shown from the chest up. Display the text "${thumbText}" in ${textStyleDesc} across the top quarter of the image. Replace the background with a dark moody gradient. 16:9 landscape format.`,
+      'face-with-icon': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left side, chest up. On the right side, add a large, simple icon or symbol related to "${topic.substring(0, 50)}" alongside the text "${thumbText}" in ${textStyleDesc}. Dark background. 16:9 landscape format.`,
+      'screenshot-reaction': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the right third looking surprised or thoughtful, chest up. On the left two-thirds, show a simplified code editor or app interface screenshot. Overlay the text "${thumbText}" in ${textStyleDesc} at the bottom. Dark background. 16:9 landscape format.`,
+      'dramatic': `Edit this photo to create a wide landscape YouTube thumbnail with dramatic, cinematic lighting. Place the person slightly left of center, chest up, with moody side lighting creating shadows. Display the text "${thumbText}" in ${textStyleDesc} on the right side. Very dark background with subtle colored rim lighting on the person. 16:9 landscape format.`,
+      'split': `Edit this photo to create a wide landscape YouTube thumbnail with a clean vertical split. Left half: the person from the photo, chest up, on a dark background. Right half: a bold solid color background with the text "${thumbText}" centered in ${textStyleDesc}. 16:9 landscape format.`,
+      'podcast-style': `Edit this photo to create a wide landscape YouTube thumbnail in a podcast/talking head style. Place the person centered, shown from chest up, as if sitting at a desk or in front of a microphone. Replace the background with a warm, slightly blurred room or studio setting. Display the text "${thumbText}" in ${textStyleDesc} at the bottom or top. 16:9 landscape format.`,
+      'breaking-news': `Edit this photo to create a wide landscape YouTube thumbnail styled like breaking tech news. Place the person on the left, chest up. On the right, add a red and white "BREAKING" news-style banner or alert graphic with the text "${thumbText}" in ${textStyleDesc}. Dark blue/navy background. 16:9 landscape format.`,
+      'versus': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left side, chest up. On the right side, add a "VS" graphic or opposing element related to the topic. Display the text "${thumbText}" in ${textStyleDesc} across the middle. Dark background with a red/orange split effect. 16:9 landscape format.`,
       'ranking-list': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the right side, chest up, with an expressive face. On the left side, display a numbered ranking list (1. 2. 3.) with simple icons or logos, with "${thumbText}" as a header in bold white font. Dark background. 16:9 landscape format.`
     };
 
