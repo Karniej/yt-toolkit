@@ -253,7 +253,8 @@
   <!-- API Keys -->
   <div class="setup">
     <input type="password" id="openaiKey" placeholder="OpenAI API key (sk-...)" />
-    <button class="btn btn-secondary" onclick="saveKeys()">Save Key</button>
+    <input type="password" id="replicateKey" placeholder="Replicate API key (r8_...)" />
+    <button class="btn btn-secondary" onclick="saveKeys()">Save Keys</button>
     <span class="key-saved" id="keySaved" style="display:none">✓ Saved</span>
   </div>
 
@@ -431,7 +432,9 @@ let currentPhotoIndex = 0;
 // ============================================================================
 function saveKeys() {
   const ok = document.getElementById('openaiKey').value.trim();
+  const rk = document.getElementById('replicateKey').value.trim();
   if (ok) localStorage.setItem('yt_openai_key', ok);
+  if (rk) localStorage.setItem('yt_replicate_key', rk);
   const el = document.getElementById('keySaved');
   el.style.display = 'inline';
   setTimeout(() => el.style.display = 'none', 2000);
@@ -441,17 +444,24 @@ function getKey(name) {
   return localStorage.getItem(`yt_${name}_key`) || '';
 }
 
+// CORS proxy for Replicate (their API blocks browser requests)
+const CORS_PROXY = 'https://corsproxy.io/?';
+
+function replicateFetch(url, options = {}) {
+  return fetch(CORS_PROXY + encodeURIComponent(url), options);
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const ok = getKey('openai');
+  const rk = getKey('replicate');
   if (ok) document.getElementById('openaiKey').value = ok;
+  if (rk) document.getElementById('replicateKey').value = rk;
 
-  // Load saved photos
   for (let i = 0; i < 2; i++) {
     const saved = localStorage.getItem(`yt_photo_${i}`);
     if (saved) { photos[i] = saved; renderPhoto(i); }
   }
 
-  // Load saved bio
   const savedBio = localStorage.getItem('yt_channel_bio');
   if (savedBio) {
     CHANNEL.bio = savedBio;
@@ -528,25 +538,46 @@ async function callOpenAI(messages, temperature = 0.9, max_tokens = 2000) {
   return data.choices[0].message.content;
 }
 
-async function callDALLE(prompt) {
-  const key = getKey('openai');
-  if (!key) { alert('Please enter your OpenAI API key'); return null; }
+async function callReplicate(prompt) {
+  const key = getKey('replicate');
+  if (!key) { alert('Please enter your Replicate API key'); return null; }
 
-  const res = await fetch('https://api.openai.com/v1/images/generations', {
+  // Create prediction
+  const createRes = await replicateFetch('https://api.replicate.com/v1/predictions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+    },
     body: JSON.stringify({
-      model: 'dall-e-3',
-      prompt,
-      n: 1,
-      size: '1792x1024',
-      quality: 'hd',
+      model: 'black-forest-labs/flux-1.1-pro',
+      input: {
+        prompt,
+        aspect_ratio: '16:9',
+        output_format: 'jpg',
+        output_quality: 90,
+        safety_tolerance: 5,
+        prompt_upsampling: true,
+      }
     })
   });
 
-  if (!res.ok) throw new Error(`DALL-E error: ${await res.text()}`);
-  const data = await res.json();
-  return data.data[0].url;
+  if (!createRes.ok) throw new Error(`Replicate error: ${await createRes.text()}`);
+  let prediction = await createRes.json();
+
+  // Poll for result
+  while (prediction.status === 'starting' || prediction.status === 'processing') {
+    await new Promise(r => setTimeout(r, 2500));
+    const pollRes = await replicateFetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+      headers: { 'Authorization': `Bearer ${key}` }
+    });
+    prediction = await pollRes.json();
+  }
+
+  if (prediction.status === 'succeeded' && prediction.output) {
+    return typeof prediction.output === 'string' ? prediction.output : prediction.output[0] || prediction.output;
+  }
+  throw new Error(`Generation failed: ${prediction.error || prediction.status}`);
 }
 
 // ============================================================================
@@ -683,8 +714,8 @@ async function generateThumbnail() {
   const topic = document.getElementById('topicInput').value.trim();
   if (!topic) { alert('Please enter a topic or transcript'); return; }
 
-  const key = getKey('openai');
-  if (!key) { alert('Please enter your OpenAI API key'); return; }
+  const rKey = getKey('replicate');
+  if (!rKey) { alert('Please enter your Replicate API key'); return; }
 
   const el = document.getElementById('thumbnailResults');
   const promptEl = document.getElementById('thumbnailPrompt');
@@ -693,43 +724,44 @@ async function generateThumbnail() {
   const style = getSelectedStyle();
 
   try {
-    // Step 1: Generate a smart image prompt via GPT
+    // Step 1: Generate image prompt via GPT
     const imagePrompt = await callOpenAI([
-      { role: 'system', content: `You create DALL-E 3 image prompts for YouTube thumbnails. The channel is about React Native indie hacking and app development.
+      { role: 'system', content: `You create FLUX image generation prompts for YouTube thumbnails. The channel is about React Native indie hacking and app development.
 
 Style requested: "${style}"
 
 THUMBNAIL RULES:
-- 16:9 aspect ratio (1792x1024)
-- Bold, high contrast, must be readable as a tiny 120px thumbnail
-- Saturated colors that pop against YouTube's white background
-- For "bold-text": dramatic lighting, person looking at screen/phone, bold 2-3 word text overlay
-- For "screenshot": clean app UI mockup with device frame, subtle glow effects
-- For "minimal": one object/icon centered, lots of negative space, max 2 big words
-- For "cinematic": dramatic lighting, shallow DOF look, moody atmosphere
-- For "before-after": clear split-screen comparison, left=bad right=good
-- For "meme": expressive face or reaction, relatable dev situation
+- 16:9 aspect ratio, 1280x720 feel
+- Bold, high contrast, must read at tiny sizes
+- Saturated colors that pop against YouTube's white UI
+- For "bold-text": dramatic lighting, person at desk/screen, intense mood
+- For "screenshot": clean app UI mockup with device, subtle glow
+- For "minimal": single object/icon, negative space, clean
+- For "cinematic": dramatic lighting, shallow DOF, moody
+- For "before-after": split screen comparison
+- For "meme": expressive face/reaction, relatable dev moment
 
 IMPORTANT:
-- DALL-E 3 CAN render text. Include 2-4 words of bold text if appropriate.
-- Use warm/hot colors (reds, oranges, yellows) — they perform best on YouTube
-- Include a human element when possible (hands typing, face, silhouette)
+- FLUX cannot render text reliably. Focus ONLY on the visual scene/background.
+- Use warm/hot colors (reds, oranges, yellows) — best YouTube CTR
+- Include human element when possible (hands, silhouette, desk setup)
 - Make it DRAMATIC. Boring thumbnails don't get clicked.
+- Think "thumbnail that stops the scroll"
 
-Output ONLY the image generation prompt. Be detailed and specific. 2-3 sentences max.` },
+Output ONLY the image prompt. 2-3 detailed sentences. No explanation.` },
       { role: 'user', content: `Create a thumbnail prompt for: ${topic.substring(0, 500)}` }
     ], 0.8);
 
     promptEl.innerHTML = `<div class="prompt-preview">Prompt: ${imagePrompt}</div>`;
 
-    // Step 2: Generate with DALL-E 3
-    el.innerHTML = '<div class="thumbnail-item"><div class="loading"><span class="spinner"></span> Generating thumbnail with DALL-E 3...</div></div>';
+    // Step 2: Generate with Replicate FLUX
+    el.innerHTML = '<div class="thumbnail-item"><div class="loading"><span class="spinner"></span> Generating with FLUX 1.1 Pro...</div></div>';
 
-    const imgUrl = await callDALLE(imagePrompt);
+    const imgUrl = await callReplicate(imagePrompt);
 
     el.innerHTML = `
       <div class="thumbnail-item">
-        <img src="${imgUrl}" alt="Generated thumbnail" crossorigin="anonymous" />
+        <img src="${imgUrl}" alt="Generated thumbnail" />
       </div>
       <div class="thumbnail-actions">
         <a href="${imgUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none;font-size:12px;">Open Full Size</a>
