@@ -287,10 +287,14 @@
     <div class="style-chips">
       <div class="chip active" data-style="face-left-text-right">Face Left + Text Right</div>
       <div class="chip" data-style="face-center-text-top">Face Center + Text Top</div>
-      <div class="chip" data-style="face-with-icon">Face + Logo/Icon</div>
-      <div class="chip" data-style="screenshot-reaction">Screenshot + Reaction</div>
-      <div class="chip" data-style="dramatic">Dramatic / Dark</div>
+      <div class="chip" data-style="dramatic">Dramatic / Cinematic</div>
       <div class="chip" data-style="split">Split Screen</div>
+      <div class="chip" data-style="podcast-style">Podcast / Talking Head</div>
+      <div class="chip" data-style="face-with-icon">Face + Icon</div>
+      <div class="chip" data-style="screenshot-reaction">Screenshot + Reaction</div>
+      <div class="chip" data-style="breaking-news">Breaking News</div>
+      <div class="chip" data-style="versus">VS / Versus</div>
+      <div class="chip" data-style="ranking-list">Ranking List</div>
     </div>
   </div>
 
@@ -742,7 +746,7 @@ REFERENCE STYLE (this is the vibe to match):
 }
 
 // ============================================================================
-// GENERATE THUMBNAIL (DALL-E 3)
+// GENERATE THUMBNAIL (Gemini nano-banana)
 // ============================================================================
 async function generateThumbnail() {
   const topic = document.getElementById('topicInput').value.trim();
@@ -767,40 +771,23 @@ async function generateThumbnail() {
       return;
     }
 
-    // Build the Gemini prompt — send face photo + describe the thumbnail
+    // Build direct prompt for Gemini (no GPT intermediary — Gemini works better with narrative prompts)
     const styleInstructions = {
-      'face-left-text-right': `LEFT 40% of frame: the person from the photo, shown from CHEST UP with their full head visible and some space above. RIGHT 60%: the text "${thumbText}" centered vertically in big bold white letters with black outline. Background: clean dark blue/purple gradient.`,
-      'face-center-text-top': `CENTER: the person from the photo, CHEST UP, full head visible with space above. TOP 25% of image: text "${thumbText}" in big bold white with black outline. Background: dark moody gradient.`,
-      'face-with-icon': `LEFT: the person from the photo, chest up, full head visible. RIGHT: a relevant icon/symbol for the topic + text "${thumbText}" in bold white. Dark background.`,
-      'screenshot-reaction': `LEFT 50%: simplified code/app screenshot. RIGHT 50%: the person from photo, chest up, looking surprised/interested. Text "${thumbText}" overlaid center. Dark background.`,
-      'dramatic': `CENTER-LEFT: person from photo, chest up, full head visible, dramatic side lighting. RIGHT: text "${thumbText}" in huge bold white with heavy black outline. Very dark background, subtle colored rim light.`,
-      'split': `Clean vertical split. LEFT half: person from photo, chest up. RIGHT half: solid colored background with text "${thumbText}" in bold white, centered.`
+      'face-left-text-right': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left third of the frame, shown from the chest up with their full head and hair visible and plenty of space above their head. On the right two-thirds of the image, display the text "${thumbText}" in very large, bold, white Impact-style font with a thick black outline. Replace the background behind the person with a clean, dark blue-to-purple gradient. The overall image must be in 16:9 landscape format.`,
+      'face-center-text-top': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person centered in the lower two-thirds of the frame, shown from the chest up. Display the text "${thumbText}" in very large, bold, white Impact-style font with thick black outline across the top quarter of the image. Replace the background with a dark moody gradient. 16:9 landscape format.`,
+      'face-with-icon': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left side, chest up. On the right side, add a large, simple icon or symbol related to "${topic.substring(0, 50)}" alongside the text "${thumbText}" in bold white Impact-style font with black outline. Dark background. 16:9 landscape format.`,
+      'screenshot-reaction': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the right third looking surprised or thoughtful, chest up. On the left two-thirds, show a simplified code editor or app interface screenshot. Overlay the text "${thumbText}" in bold white Impact-style font with black outline at the bottom. Dark background. 16:9 landscape format.`,
+      'dramatic': `Edit this photo to create a wide landscape YouTube thumbnail with dramatic, cinematic lighting. Place the person slightly left of center, chest up, with moody side lighting creating shadows. Display the text "${thumbText}" in very large, bold, white Impact-style font with heavy black outline on the right side. Very dark background with subtle colored rim lighting on the person. 16:9 landscape format.`,
+      'split': `Edit this photo to create a wide landscape YouTube thumbnail with a clean vertical split. Left half: the person from the photo, chest up, on a dark background. Right half: a bold solid color background with the text "${thumbText}" centered in very large, bold, white Impact-style font with black outline. 16:9 landscape format.`,
+      'podcast-style': `Edit this photo to create a wide landscape YouTube thumbnail in a podcast/talking head style. Place the person centered, shown from chest up, as if sitting at a desk or in front of a microphone. Replace the background with a warm, slightly blurred room or studio setting. Display the text "${thumbText}" in large, bold white font with black outline at the bottom or top. 16:9 landscape format.`,
+      'breaking-news': `Edit this photo to create a wide landscape YouTube thumbnail styled like breaking tech news. Place the person on the left, chest up. On the right, add a red and white "BREAKING" news-style banner or alert graphic with the text "${thumbText}" in large bold white font. Dark blue/navy background. 16:9 landscape format.`,
+      'versus': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the left side, chest up. On the right side, add a "VS" graphic or opposing element related to the topic. Display the text "${thumbText}" in large bold white Impact font with black outline across the middle. Dark background with a red/orange split effect. 16:9 landscape format.`,
+      'ranking-list': `Edit this photo to create a wide landscape YouTube thumbnail. Place the person on the right side, chest up, with an expressive face. On the left side, display a numbered ranking list (1. 2. 3.) with simple icons or logos, with "${thumbText}" as a header in bold white font. Dark background. 16:9 landscape format.`
     };
 
-    const geminiPrompt = `Generate a YouTube thumbnail. The output image MUST be exactly 16:9 landscape aspect ratio (wider than tall, like 1280x720).
+    const geminiPrompt = `${styleInstructions[style] || styleInstructions['face-left-text-right']}
 
-COMPOSITION:
-${styleInstructions[style] || styleInstructions['face-left-text-right']}
-
-FRAMING RULES (VERY IMPORTANT):
-- The person must be shown from CHEST/SHOULDERS UP — NOT a close-up of just the face
-- There MUST be empty space above the person's head (at least 10% of image height)
-- The person's full head, hair, and shoulders must be fully visible — nothing cropped
-- The image must be LANDSCAPE orientation (16:9) — much wider than it is tall
-- ALL text must be fully visible within the image bounds — no text cut off at edges
-
-TEXT RULES:
-- The text "${thumbText}" must be LARGE, bold, white with black/dark outline
-- Text must be fully readable and not overlap the person's face
-- Do NOT add any extra text, watermarks, or labels beyond "${thumbText}"
-
-STYLE:
-- Keep the person's face EXACTLY as in the photo — preserve all facial features accurately
-- Background: simple, clean, not busy — dark gradients or solid colors work best
-- High contrast — must look good as a tiny 120px thumbnail
-- Professional YouTube thumbnail quality
-
-Topic context: ${topic.substring(0, 150)}`;
+Avoid: cropping the person's head, cutting off any text at edges, making the image portrait/vertical, distorting or changing the person's facial features, adding any extra text beyond "${thumbText}".`;
 
     promptEl.innerHTML = `<div class="prompt-preview">Text: ${thumbText} | Style: ${style}</div>`;
 
