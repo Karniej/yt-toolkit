@@ -312,7 +312,7 @@
 
   <div class="input-section">
     <label>Layout Style</label>
-    <div class="style-chips">
+    <div class="style-chips" id="layoutStyleChips">
       <div class="chip active" data-style="face-left-text-right">Face Left + Text Right</div>
       <div class="chip" data-style="face-center-text-top">Face Center + Text Top</div>
       <div class="chip" data-style="dramatic">Dramatic / Cinematic</div>
@@ -587,16 +587,8 @@ function removePhoto(index) {
 // ============================================================================
 // STYLE CHIPS
 // ============================================================================
-// Layout style chips
-document.querySelectorAll('.style-chips:not(#textStyleChips) .chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-  });
-});
-
-// Text style + tone chips
-document.querySelectorAll('#textStyleChips .chip, #textToneChips .chip').forEach(chip => {
+// All chip groups: click toggles within parent only
+document.querySelectorAll('#layoutStyleChips .chip, #textStyleChips .chip, #textToneChips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
     chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
@@ -604,7 +596,7 @@ document.querySelectorAll('#textStyleChips .chip, #textToneChips .chip').forEach
 });
 
 function getSelectedStyle() {
-  return document.querySelector('.style-chips:not(#textStyleChips) .chip.active')?.dataset.style || 'face-left-text-right';
+  return document.querySelector('#layoutStyleChips .chip.active')?.dataset.style || 'face-left-text-right';
 }
 
 function getSelectedTextStyle() {
