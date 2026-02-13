@@ -769,27 +769,38 @@ async function generateThumbnail() {
 
     // Build the Gemini prompt — send face photo + describe the thumbnail
     const styleInstructions = {
-      'face-left-text-right': `Place the person from the photo on the LEFT side of the image (taking up about 40% of the frame, from waist/chest up). On the RIGHT side, place the text "${thumbText}" in big bold white letters with a subtle dark outline. The background should be a clean, dark gradient or abstract pattern related to the topic. The person should look natural, not distorted.`,
-      'face-center-text-top': `Place the person from the photo in the CENTER of the image (chest up, looking at camera). Place the text "${thumbText}" at the TOP of the image in big bold white letters with dark outline. Dark moody background. The person should look natural and undistorted.`,
-      'face-with-icon': `Place the person from the photo on one side. On the other side, include a relevant icon or logo related to the topic, with the text "${thumbText}" in bold. Clean dark background. Person looks natural.`,
-      'screenshot-reaction': `Create a split: one side shows a simplified app/code screenshot related to the topic, other side shows the person from the photo reacting to it. Text "${thumbText}" overlaid. Dark background.`,
-      'dramatic': `Place the person from the photo looking intense, with dramatic dark lighting and shadows. Text "${thumbText}" in large bold white letters. Moody, cinematic feel. Deep dark background with subtle color accents.`,
-      'split': `Split the image in half. Left side: the person from the photo. Right side: a visual related to the topic with text "${thumbText}" in bold white. Clean divide between the two halves.`
+      'face-left-text-right': `LEFT 40% of frame: the person from the photo, shown from CHEST UP with their full head visible and some space above. RIGHT 60%: the text "${thumbText}" centered vertically in big bold white letters with black outline. Background: clean dark blue/purple gradient.`,
+      'face-center-text-top': `CENTER: the person from the photo, CHEST UP, full head visible with space above. TOP 25% of image: text "${thumbText}" in big bold white with black outline. Background: dark moody gradient.`,
+      'face-with-icon': `LEFT: the person from the photo, chest up, full head visible. RIGHT: a relevant icon/symbol for the topic + text "${thumbText}" in bold white. Dark background.`,
+      'screenshot-reaction': `LEFT 50%: simplified code/app screenshot. RIGHT 50%: the person from photo, chest up, looking surprised/interested. Text "${thumbText}" overlaid center. Dark background.`,
+      'dramatic': `CENTER-LEFT: person from photo, chest up, full head visible, dramatic side lighting. RIGHT: text "${thumbText}" in huge bold white with heavy black outline. Very dark background, subtle colored rim light.`,
+      'split': `Clean vertical split. LEFT half: person from photo, chest up. RIGHT half: solid colored background with text "${thumbText}" in bold white, centered.`
     };
 
-    const geminiPrompt = `Create a YouTube thumbnail image (16:9 aspect ratio, 1280x720).
+    const geminiPrompt = `Generate a YouTube thumbnail. The output image MUST be exactly 16:9 landscape aspect ratio (wider than tall, like 1280x720).
 
+COMPOSITION:
 ${styleInstructions[style] || styleInstructions['face-left-text-right']}
 
-Topic: ${topic.substring(0, 200)}
+FRAMING RULES (VERY IMPORTANT):
+- The person must be shown from CHEST/SHOULDERS UP — NOT a close-up of just the face
+- There MUST be empty space above the person's head (at least 10% of image height)
+- The person's full head, hair, and shoulders must be fully visible — nothing cropped
+- The image must be LANDSCAPE orientation (16:9) — much wider than it is tall
+- ALL text must be fully visible within the image bounds — no text cut off at edges
 
-CRITICAL RULES:
-- Keep the person's face EXACTLY as it appears in the photo — do not change, age, or distort facial features
-- The text "${thumbText}" must be clearly readable, large, bold white with dark outline
-- Background should be simple and clean — not busy or cluttered
-- High contrast so it reads well as a small thumbnail
+TEXT RULES:
+- The text "${thumbText}" must be LARGE, bold, white with black/dark outline
+- Text must be fully readable and not overlap the person's face
+- Do NOT add any extra text, watermarks, or labels beyond "${thumbText}"
+
+STYLE:
+- Keep the person's face EXACTLY as in the photo — preserve all facial features accurately
+- Background: simple, clean, not busy — dark gradients or solid colors work best
+- High contrast — must look good as a tiny 120px thumbnail
 - Professional YouTube thumbnail quality
-- Do NOT add any extra text beyond "${thumbText}"`;
+
+Topic context: ${topic.substring(0, 150)}`;
 
     promptEl.innerHTML = `<div class="prompt-preview">Text: ${thumbText} | Style: ${style}</div>`;
 
