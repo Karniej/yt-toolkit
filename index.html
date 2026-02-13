@@ -283,7 +283,21 @@
   </div>
 
   <div class="input-section">
-    <label>Text Style</label>
+    <label>Text Tone</label>
+    <div class="style-chips" id="textToneChips">
+      <div class="chip active" data-tone="curiosity">Curiosity Gap</div>
+      <div class="chip" data-tone="provocative">Provocative</div>
+      <div class="chip" data-tone="honest">Honest / Raw</div>
+      <div class="chip" data-tone="hype">Hype / Excited</div>
+      <div class="chip" data-tone="deadpan">Deadpan / Dry</div>
+      <div class="chip" data-tone="contrarian">Contrarian</div>
+      <div class="chip" data-tone="numbers">Numbers / Data</div>
+      <div class="chip" data-tone="question">Question</div>
+    </div>
+  </div>
+
+  <div class="input-section">
+    <label>Text Visual Style</label>
     <div class="style-chips" id="textStyleChips">
       <div class="chip active" data-textstyle="bold-white">Bold White + Black Outline</div>
       <div class="chip" data-textstyle="yellow-bold">Yellow Bold</div>
@@ -581,10 +595,10 @@ document.querySelectorAll('.style-chips:not(#textStyleChips) .chip').forEach(chi
   });
 });
 
-// Text style chips
-document.querySelectorAll('#textStyleChips .chip').forEach(chip => {
+// Text style + tone chips
+document.querySelectorAll('#textStyleChips .chip, #textToneChips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
-    document.querySelectorAll('#textStyleChips .chip').forEach(c => c.classList.remove('active'));
+    chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
   });
 });
@@ -595,6 +609,10 @@ function getSelectedStyle() {
 
 function getSelectedTextStyle() {
   return document.querySelector('#textStyleChips .chip.active')?.dataset.textstyle || 'bold-white';
+}
+
+function getSelectedTone() {
+  return document.querySelector('#textToneChips .chip.active')?.dataset.tone || 'curiosity';
 }
 
 // ============================================================================
@@ -625,12 +643,28 @@ async function suggestThumbTexts() {
   const el = document.getElementById('thumbTextSuggestions');
   el.innerHTML = '<span class="spinner"></span>';
 
+  const tone = getSelectedTone();
+  const toneInstructions = {
+    'curiosity': 'Create a curiosity gap — the viewer NEEDS to click to find out. Leave something unsaid. Examples: "IT HAPPENED", "WAIT WHAT", "THE SECRET"',
+    'provocative': 'Be provocative and bold. Challenge assumptions. Make people angry or excited enough to click. Examples: "IT\'S DEAD", "STOP DOING THIS", "YOU\'RE WRONG"',
+    'honest': 'Be raw and honest. No hype, just real talk. Vulnerability works. Examples: "$0 REVENUE", "I FAILED", "HONEST REVIEW", "THE TRUTH"',
+    'hype': 'Maximum excitement and energy. Celebrate wins. Examples: "LET\'S GO!", "SHIPPED IT!", "IT WORKS!", "GAME CHANGER"',
+    'deadpan': 'Dry, understated, slightly ironic humor. Examples: "oh no", "well then", "cool cool cool", "it broke"',
+    'contrarian': 'Go against the popular opinion. Be the "actually..." voice. Examples: "OVERRATED", "NOBODY ASKED", "WRONG TAKE", "UNPOPULAR OPINION"',
+    'numbers': 'Lead with a specific number or data point. Examples: "$847/MO", "10 APPS", "0 USERS", "3 MONTHS", "24 HOURS"',
+    'question': 'Ask a compelling question that makes people want the answer. Examples: "IS IT WORTH IT?", "BUT WHY?", "WHO ASKED?", "REALLY?"',
+  };
+
   try {
     const result = await callOpenAI([
-      { role: 'system', content: `Generate 5 thumbnail text options for a YouTube video. Each should be 2-4 punchy words, ALL CAPS, that create curiosity or tension on a thumbnail.
+      { role: 'system', content: `Generate 5 thumbnail text options for a YouTube video. Each should be 2-4 punchy words, ALL CAPS.
 
-Good: "SHIPPED IT", "AI CODES NOW", "$0 REVENUE", "CLOUD BOT MAGIC!", "IT'S DEAD", "NEVER AGAIN"
-Bad: "How To Build Apps" (too generic, too long)
+TONE: ${toneInstructions[tone] || toneInstructions['curiosity']}
+
+Rules:
+- MAX 4 words per option
+- Must match the requested tone exactly
+- No generic filler
 
 Return exactly 5 options, one per line, numbered 1-5. Nothing else.` },
       { role: 'user', content: topic.substring(0, 300) }
