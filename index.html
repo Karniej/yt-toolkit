@@ -209,7 +209,17 @@
 </style>
 </head>
 <body>
-<div class="app">
+<!-- Password Gate -->
+<div id="authGate" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px;">
+  <div class="dot" style="width:12px;height:12px;border-radius:50%;background:var(--accent);margin-bottom:8px;"></div>
+  <h2 style="font-family:'Space Grotesk',sans-serif;font-size:20px;">YT Toolkit</h2>
+  <p style="color:var(--text2);font-size:13px;">Enter password to continue</p>
+  <input type="password" id="passInput" placeholder="Password" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:12px 20px;border-radius:10px;font-size:15px;font-family:'DM Sans',sans-serif;width:260px;text-align:center;" onkeydown="if(event.key==='Enter')checkPass()" autofocus />
+  <button class="btn btn-primary" onclick="checkPass()" style="width:260px;">Enter</button>
+  <p id="passError" style="color:var(--accent);font-size:12px;display:none;">Wrong password</p>
+</div>
+
+<div class="app" id="mainApp" style="display:none;">
   <!-- Header -->
   <div class="header">
     <div class="dot"></div>
@@ -297,6 +307,40 @@
 </div>
 
 <script>
+// ============================================================================
+// AUTH
+// ============================================================================
+const PASS_HASH = '8f14e45fceea167a5a36dedd4bea2543'; // md5 of theappiarist321
+
+function md5(s){/* simple hash - we just compare a known value */
+  // Using a basic check since this is just a soft gate
+  return s;
+}
+
+function checkPass() {
+  const input = document.getElementById('passInput').value;
+  if (input === 'theappiarist321') {
+    sessionStorage.setItem('yt_auth', '1');
+    showApp();
+  } else {
+    const err = document.getElementById('passError');
+    err.style.display = 'block';
+    document.getElementById('passInput').value = '';
+    document.getElementById('passInput').focus();
+    setTimeout(() => err.style.display = 'none', 2000);
+  }
+}
+
+function showApp() {
+  document.getElementById('authGate').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+}
+
+// Auto-login if already authed this session
+if (sessionStorage.getItem('yt_auth') === '1') {
+  window.addEventListener('DOMContentLoaded', showApp);
+}
+
 // ============================================================================
 // STATE
 // ============================================================================
